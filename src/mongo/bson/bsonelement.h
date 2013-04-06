@@ -528,11 +528,15 @@ namespace mongo {
     }
 
     inline double BSONElement::numberDouble() const {
+        int i;
         switch( type() ) {
         case NumberDouble:
             return _numberDouble();
         case NumberInt:
-            return *reinterpret_cast< const int* >( value() );
+            // This works around a misalignment issue on ARM
+            memcpy(&i, reinterpret_cast< const int* >( value() ), sizeof(int));
+            //i = *reinterpret_cast< const int* >( value() );
+            return (double) i;
         case NumberLong:
             return (double) *reinterpret_cast< const long long* >( value() );
         default:

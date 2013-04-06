@@ -37,31 +37,47 @@ namespace mongo {
         static T compareAndSwap(volatile T* dest, T expected, T newValue) {
 
             T result;
+            #if defined(__arm__)
+              result = __sync_val_compare_and_swap(dest, expected, newValue);
+            #else
             asm volatile ("lock cmpxchg %[src], %[dest]"
                           : [dest] "+m" (*dest),
                             "=a" (result)
                           : [src] "r" (newValue),
                             "a" (expected)
                           : "memory", "cc");
+            #endif
             return result;
         }
 
         static T swap(volatile T* dest, T newValue) {
 
             T result = newValue;
+            #if defined(__arm__)
+              result = __sync_lock_test_and_set(dest, newValue);
+              __sync_lock_release(dest); 
+            #else
             // No need for "lock" prefix on "xchg".
             asm volatile ("xchg %[r], %[dest]"
                           : [dest] "+m" (*dest),
                             [r] "+r" (result)
                           :
                           : "memory");
+            #endif
             return result;
         }
 
         static T load(volatile const T* value) {
+            #if defined(__arm__)
+              T result;
+              __sync_synchronize();
+              result = *value;
+              __sync_synchronize();
+            #else
             asm volatile ("mfence" ::: "memory");
             T result = *value;
             asm volatile ("mfence" ::: "memory");
+            #endif
             return result;
         }
 
@@ -70,19 +86,29 @@ namespace mongo {
         }
 
         static void store(volatile T* dest, T newValue) {
+            #if defined(__arm__)
+              __sync_synchronize();
+              *dest = newValue;
+              __sync_synchronize();
+            #else
             asm volatile ("mfence" ::: "memory");
             *dest = newValue;
             asm volatile ("mfence" ::: "memory");
+            #endif
         }
 
         static T fetchAndAdd(volatile T* dest, T increment) {
 
             T result = increment;
+            #if defined(__arm__)
+              result = __sync_fetch_and_add(dest, increment);
+            #else
             asm volatile ("lock xadd %[src], %[dest]"
                           : [dest] "+m" (*dest),
                             [src] "+r" (result)
                           :
                           : "memory", "cc");
+            #endif
             return result;
         }
 
@@ -105,6 +131,9 @@ namespace mongo {
     public:
         static T compareAndSwap(volatile T* dest, T expected, T newValue) {
             T result = expected;
+            #if defined(__arm__)
+              result = __sync_val_compare_and_swap(dest, expected, newValue);
+            #else
             asm volatile ("push %%eax\n"
                           "push %%ebx\n"
                           "push %%ecx\n"
@@ -125,6 +154,7 @@ namespace mongo {
                             "D" (&result),
                             "d" (&newValue)
                           : "memory", "cc");
+            #endif
             return result;
         }
 
